@@ -10,7 +10,7 @@ loop do
   print "++ client connected\n"
   print "<- | #{client_socket.gets}"
   response = 'HTTP/1.1 200 OK'
-  client_socket.puts "#{response}\r\n"
+  client_socket.puts "#{response}\r\n\r\n"
   print "-> | #{response}\n"
   client_socket.close
   print "-- client disconnected\n"
