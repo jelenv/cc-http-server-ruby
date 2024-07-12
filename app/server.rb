@@ -13,14 +13,25 @@ loop do
   method = request_parts[0]
   path = request_parts[1]
 
-  response = ''
+  http_version = 'HTTP/1.1'
+  status_code = '404 Not Found'
   if method == 'GET' && path == '/'
-    response = 'HTTP/1.1 200 OK'
-  else
-    response = 'HTTP/1.1 404 Not Found'
+    status_code = '200 OK'
+  elsif method == 'GET' && path.start_with?('/echo/')
+    status_code = '200 OK'
+    path_parts = path.split('/')
+    response_body = path_parts[2]
+    content_type = 'Content-Type: text/plain'
+    content_len = "Content-Length: #{response_body.length}"
   end
 
-  client_socket.puts "#{response}\r\n\r\n"
+  response = "#{http_version} #{status_code}\r\n"
+  response += "#{content_type}\r\n" if content_type
+  response += "#{content_len}\r\n" if content_len
+  response += "\r\n"
+  response += response_body if response_body
+
+  client_socket.puts response
   print "-> | #{response}\n"
   client_socket.close
 end
