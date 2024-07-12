@@ -6,12 +6,10 @@ server = TCPServer.new 4221
 print "server started at: http://localhost:4221\n"
 
 loop do
-  client_socket = server.accept
-  request = client_socket.gets
+  client = server.accept
+  request = client.gets
   print "<- | #{request}"
-  request_parts = request.split(' ')
-  method = request_parts[0]
-  path = request_parts[1]
+  method, path = request.split(' ')
 
   http_version = 'HTTP/1.1'
   status_code = '404 Not Found'
@@ -19,8 +17,7 @@ loop do
     status_code = '200 OK'
   elsif method == 'GET' && path.start_with?('/echo/')
     status_code = '200 OK'
-    path_parts = path.split('/')
-    response_body = path_parts[2]
+    response_body = path.split('/').last.strip
     content_type = 'Content-Type: text/plain'
     content_len = "Content-Length: #{response_body.length}"
   end
@@ -31,7 +28,7 @@ loop do
   response += "\r\n"
   response += response_body if response_body
 
-  client_socket.puts response
+  client.puts response
   print "-> | #{response}\n"
-  client_socket.close
+  client.close
 end
