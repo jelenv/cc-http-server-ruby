@@ -1,9 +1,6 @@
-require "socket"
+# frozen_string_literal: true
 
-# You can use print statements as follows for debugging, they'll be visible when running tests.
-print("Logs from your program will appear here!")
+require 'socket'
 
-# Uncomment this to pass the first stage
-#
-# server = TCPServer.new("localhost", 4221)
-# client_socket, client_address = server.accept
+server = TCPServer.new('localhost', 4221)
+client_socket, client_address = server.accept
