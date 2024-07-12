@@ -7,17 +7,30 @@ print "server started at: http://localhost:4221\n"
 
 loop do
   client = server.accept
-  request = client.gets
-  print "<- | #{request}"
-  method, path = request.split(' ')
+  request_line = client.gets
+  print "<- | #{request_line}"
+  method, path = request_line.split(' ')
+  request_headers = client.gets "\r\n\r\n"
+  request_headers = request_headers.split("\r\n")
 
   http_version = 'HTTP/1.1'
   status_code = '404 Not Found'
+
   if method == 'GET' && path == '/'
     status_code = '200 OK'
-  elsif method == 'GET' && path.start_with?('/echo/')
+  end
+
+  if method == 'GET' && path.start_with?('/echo/')
     status_code = '200 OK'
     response_body = path.split('/').last.strip
+    content_type = 'Content-Type: text/plain'
+    content_len = "Content-Length: #{response_body.length}"
+  end
+
+  if method == 'GET' && path == '/user-agent'
+    status_code = '200 OK'
+    request_user_agent = request_headers.find { |header| header.start_with?('User-Agent') }
+    response_body = request_user_agent.split(':').last.strip
     content_type = 'Content-Type: text/plain'
     content_len = "Content-Length: #{response_body.length}"
   end
