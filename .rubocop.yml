@@ -1,0 +1,11 @@
+AllCops:
+  NewCops: enable
+
+Metrics/BlockLength:
+  Enabled: false
+
+Style/FrozenStringLiteralComment:
+  SafeAutoCorrect: true
+  Details: 'Add `# frozen_string_literal: true` to the top of the file. Frozen string
+    literals will become the default in a future Ruby version, and we want to make
+    sure we''re ready.'

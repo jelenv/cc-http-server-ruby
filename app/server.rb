@@ -2,23 +2,40 @@
 
 require 'socket'
 
-server = TCPServer.new 4221
-print "server started at: http://localhost:4221\n"
+def parse_headers(client)
+  headers = client.gets "\r\n\r\n"
+  headers = headers.split("\r\n")
+  headers_parsed = {}
+  headers.each do |header|
+    key, value = header.split(':')
+    headers_parsed[key.downcase] = value.strip
+  end
+  headers_parsed
+end
 
-loop do
-  client = server.accept
+def handle_client(client)
+  loop do
+    close_connection = handle_request(client)
+    break if close_connection || client.closed? || client.eof?
+  end
+  client.close
+end
+
+def handle_request(client)
   request_line = client.gets
+  return nil unless request_line
+
   print "<- | #{request_line}"
-  method, path = request_line.split(' ')
-  request_headers = client.gets "\r\n\r\n"
-  request_headers = request_headers.split("\r\n")
+  method, path, = request_line.split
+  headers = parse_headers(client)
 
   http_version = 'HTTP/1.1'
   status_code = '404 Not Found'
+  content_type = nil
+  content_len = nil
+  response_body = nil
 
-  if method == 'GET' && path == '/'
-    status_code = '200 OK'
-  end
+  status_code = '200 OK' if method == 'GET' && path == '/'
 
   if method == 'GET' && path.start_with?('/echo/')
     status_code = '200 OK'
@@ -29,8 +46,7 @@ loop do
 
   if method == 'GET' && path == '/user-agent'
     status_code = '200 OK'
-    request_user_agent = request_headers.find { |header| header.start_with?('User-Agent') }
-    response_body = request_user_agent.split(':').last.strip
+    response_body = headers['user-agent']
     content_type = 'Content-Type: text/plain'
     content_len = "Content-Length: #{response_body.length}"
   end
@@ -41,7 +57,20 @@ loop do
   response += "\r\n"
   response += response_body if response_body
 
-  client.puts response
+  client.write response
   print "-> | #{response}\n"
-  client.close
+
+  # TODO: fix and improve the keep-alive implementation
+  true
+rescue EOFError, Errno::ECONNRESET
+  true
+end
+
+server = TCPServer.new 4221
+print "server started at: http://localhost:4221\n"
+
+loop do
+  Thread.start(server.accept) do |client|
+    handle_client(client)
+  end
 end
