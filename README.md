@@ -36,3 +36,6 @@ Note: This section is for stages 2 and beyond.
    `app/server.rb`.
 1. Commit your changes and run `git push origin master` to submit your solution
    to CodeCrafters. Test output will be streamed to your terminal.
+
+# Test the Server
+Run the script `./test_server.sh`
