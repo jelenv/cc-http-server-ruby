@@ -4,8 +4,9 @@
 class HttpHandler
   require_relative 'http_response'
 
-  def initialize(client)
+  def initialize(client, files_dir)
     @client = client
+    @files_dir = files_dir
   end
 
   def process
@@ -23,12 +24,23 @@ class HttpHandler
         case path
         when '/'
           response.status = 200
-        when ->(path) { path.start_with?('/echo/') }
+        when ->(path) { path.start_with? '/echo/' }
           response.status = 200
           response.set_body(path.split('/').last.strip, 'text/plain')
         when '/user-agent'
           response.status = 200
           response.set_body(headers['user-agent'], 'text/plain')
+        when ->(path) { path.start_with? '/files/' }
+          filename = path.split('/').last.strip
+          if File.exist?("#{@files_dir}/#{filename}")
+            response.status = 200
+            file_content = File.read("#{@files_dir}/#{filename}", mode: 'rb')
+            response.set_body(file_content, 'application/octet-stream')
+          else
+            response.status = 404
+          end
+        else
+          response.status = 404
         end
       end
 

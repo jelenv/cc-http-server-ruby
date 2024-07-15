@@ -86,6 +86,15 @@ run_tests() {
         print_color "Test passed!" "green"
     fi
 
+    # Test 6: existing file
+    echo -n 'Hello, World!' > /tmp/foo
+    test_endpoint "$base_url/files/foo" "200" "Hello, World!"
+    failed_tests=$((failed_tests + $?))
+
+    # Test 7: non-existing file
+    test_endpoint "$base_url/files/non-existing-file" "404"
+    failed_tests=$((failed_tests + $?))
+
     if [ $failed_tests -eq 0 ]; then
         print_color "All tests passed successfully!" "green"
         exit 0
