@@ -17,6 +17,7 @@ class HttpHandler
       print "<- | #{request_line}"
       method, path, = request_line.split
       headers = parse_headers
+      body = @client.read(headers['content-length'].to_i) if headers['content-length']&.to_i&.positive?
 
       response = HttpResponse.new
 
@@ -36,15 +37,23 @@ class HttpHandler
             response.status = 200
             file_content = File.read("#{@files_dir}/#{filename}", mode: 'rb')
             response.set_body(file_content, 'application/octet-stream')
-          else
-            response.status = 404
           end
-        else
-          response.status = 404
         end
       end
 
-      if response.status == 200
+      if method == 'POST'
+        case path
+        when ->(path) { path.start_with? '/files/' }
+          filename = path.split('/').last.strip
+          print "filename: #{filename}\n"
+          if Dir.exist?(@files_dir.to_s) && headers['content-type'] == 'application/octet-stream'
+            response.status = 201
+            File.write("#{@files_dir}/#{filename}", body, mode: 'wb')
+          end
+        end
+      end
+
+      if response.status == 200 || response.status == 201
         if headers['connection']&.downcase == 'keep-alive'
           response.headers['Connection'] = 'keep-alive'
           keep_alive = true

@@ -9,48 +9,30 @@ print_color() {
 }
 
 test_endpoint() {
-    local url="$1"
-    local expected_status="$2"
-    local expected_body="$3"
-    local custom_header="$4"
+    local url="$1" method="${2:-GET}" expect_status="$3" expect_body="$4" header="$5" data="$6"
+    echo "Testing: $method $url"
 
-    echo "Testing endpoint: $url"
+    response=$(curl -s -i -X "$method" ${header:+-H "$header"} ${data:+-d "$data"} "$url")
+    status_code=$(echo "$response" | head -n1 | awk '{print $2}')
+    body=$(echo "$response" | awk 'BEGIN {RS="\r\n\r\n"} NR==2')
 
-    if [ -n "$custom_header" ]; then
-        response=$(curl -s -i -H "$custom_header" "$url")
+    echo "Status: $status_code"
+    if [ "$status_code" = "$expect_status" ] && { [ -z "$expect_body" ] || [[ "$body" == *"$expect_body"* ]]; }; then
+        print_color "Test passed!" green
+        return 0
     else
-        response=$(curl -s -i "$url")
-    fi
-
-    if [ $? -ne 0 ]; then
-        print_color "Error: Failed to connect to the server. Is it running?" "red"
+        print_color "Test failed! Expected status $expect_status${expect_body:+ and body containing '$expect_body'}" red
+        [ -n "$expect_body" ] && echo "Actual body: $body"
         return 1
     fi
+}
 
-    status_code=$(echo "$response" | head -n1 | awk '{print $2}')
-
-    body=$(echo "$response" | awk 'BEGIN {RS="\r\n\r\n"; ORS=""} NR==2 {print; exit}')
-
-    echo "Received status code: $status_code"
-    # echo "Received body: $body"
-
-    if [ "$status_code" = "$expected_status" ]; then
-        if [ -n "$expected_body" ]; then
-            if [[ "$body" == *"$expected_body"* ]]; then
-                print_color "Test passed! Status code and body match expected values." "green"
-                return 0
-            else
-                print_color "Test failed! Status code matches but body doesn't contain expected value." "red"
-                echo "Expected body: $expected_body"
-                echo "Actual body: $body"
-                return 1
-            fi
-        else
-            print_color "Test passed! Status code matches expected value." "green"
-            return 0
-        fi
+check_file() {
+    if [ -f "$1" ] && [ "$(cat "$1")" = "$2" ]; then
+        print_color "File content matches." green
+        return 0
     else
-        print_color "Test failed! Expected status '$expected_status' but got '$status_code'" "red"
+        print_color "File check failed. Expected: $2" red
         return 1
     fi
 }
@@ -60,40 +42,49 @@ run_tests() {
     local failed_tests=0
 
     # Test 1: Root endpoint
-    test_endpoint "$base_url/" "200"
+    test_endpoint "$base_url/" "GET" "200"
     failed_tests=$((failed_tests + $?))
 
     # Test 2: Invalid endpoint
-    test_endpoint "$base_url/invalid" "404"
+    test_endpoint "$base_url/invalid" "GET" "404"
     failed_tests=$((failed_tests + $?))
 
     # Test 3: Echo endpoint
-    test_endpoint "$base_url/echo/abc" "200" "abc"
+    test_endpoint "$base_url/echo/abc" "GET" "200" "abc"
     failed_tests=$((failed_tests + $?))
 
     # Test 4: User-agent endpoint
     user_agent="curl/7.64.1"
-    test_endpoint "$base_url/user-agent" "200" "$user_agent" "User-Agent: $user_agent"
+    test_endpoint "$base_url/user-agent" "GET" "200" "$user_agent" "User-Agent: $user_agent"
     failed_tests=$((failed_tests + $?))
 
-    # Test 5: concurrency
+    # Test 5: Concurrency
     echo "Testing concurrency with: oha http://127.0.0.1:4221"
     oha --no-tui http://127.0.0.1:4221
     if [ $? -ne 0 ]; then
-        print_color "Test failed!" "red"
+        print_color "Concurrency test failed!" red
         failed_tests=$((failed_tests + 1))
     else
-        print_color "Test passed!" "green"
+        print_color "Concurrency test passed!" green
     fi
 
-    # Test 6: existing file
+    # Test 6: Download existing file
     echo -n 'Hello, World!' > /tmp/foo
-    test_endpoint "$base_url/files/foo" "200" "Hello, World!"
+    test_endpoint "$base_url/files/foo" "GET" "200" "Hello, World!"
     failed_tests=$((failed_tests + $?))
 
-    # Test 7: non-existing file
-    test_endpoint "$base_url/files/non-existing-file" "404"
+    # Test 7: Download non-existing file
+    test_endpoint "$base_url/files/non-existing-file" "GET" "404"
     failed_tests=$((failed_tests + $?))
+
+    # Test 8: Upload a file to the server
+    local filename="test_file.txt"
+    local file_content="This is a test file content."
+    test_endpoint "$base_url/files/$filename" "POST" "201" "" "Content-Type: application/octet-stream" "$file_content"
+    failed_tests=$((failed_tests + $?))
+    check_file "/tmp/$filename" "$file_content"
+    failed_tests=$((failed_tests + $?))
+    rm /tmp/test_file.txt
 
     if [ $failed_tests -eq 0 ]; then
         print_color "All tests passed successfully!" "green"
