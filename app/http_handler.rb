@@ -53,6 +53,10 @@ class HttpHandler
         end
       end
 
+      if response.headers['content-length'] && headers['accept-encoding']&.downcase == 'gzip'
+        response.headers['content-encoding'] = 'gzip'
+      end
+
       if response.status == 200 || response.status == 201
         if headers['connection']&.downcase == 'keep-alive'
           response.headers['Connection'] = 'keep-alive'
