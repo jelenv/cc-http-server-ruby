@@ -27,10 +27,10 @@ class HttpHandler
           response.status = 200
         when ->(path) { path.start_with? '/echo/' }
           response.status = 200
-          response.set_body(path.split('/').last.strip, 'text/plain')
+          response.set_body(path.split('/').last.strip, 'text/plain', headers['accept-encoding'])
         when '/user-agent'
           response.status = 200
-          response.set_body(headers['user-agent'], 'text/plain')
+          response.set_body(headers['user-agent'], 'text/plain', headers['accept-encoding'])
         when ->(path) { path.start_with? '/files/' }
           filename = path.split('/').last.strip
           if File.exist?("#{@files_dir}/#{filename}")
@@ -51,10 +51,6 @@ class HttpHandler
             File.write("#{@files_dir}/#{filename}", body, mode: 'wb')
           end
         end
-      end
-
-      if !response.headers['Content-Length'].nil? && headers['accept-encoding']&.include?('gzip')
-        response.headers['Content-Encoding'] = 'gzip'
       end
 
       if response.status == 200 || response.status == 201
