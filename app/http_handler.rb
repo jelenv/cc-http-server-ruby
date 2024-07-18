@@ -53,8 +53,8 @@ class HttpHandler
         end
       end
 
-      if response.headers['content-length'] && headers['accept-encoding']&.downcase == 'gzip'
-        response.headers['content-encoding'] = 'gzip'
+      if !response.headers['Content-Length'].nil? && headers['accept-encoding']&.downcase == 'gzip'
+        response.headers['Content-Encoding'] = 'gzip'
       end
 
       if response.status == 200 || response.status == 201
