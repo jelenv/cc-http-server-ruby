@@ -53,7 +53,7 @@ class HttpHandler
         end
       end
 
-      if !response.headers['Content-Length'].nil? && headers['accept-encoding'].include?('gzip')
+      if !response.headers['Content-Length'].nil? && headers['accept-encoding']&.include?('gzip')
         response.headers['Content-Encoding'] = 'gzip'
       end
 
