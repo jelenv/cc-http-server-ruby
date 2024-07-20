@@ -3,6 +3,9 @@
 # Handles client connection and it's requests until disconnect
 class HttpHandler
   require_relative 'http_response'
+  require 'timeout'
+
+  KEEP_ALIVE_TIMEOUT = 5 # seconds
 
   def initialize(client, files_dir)
     @client = client
@@ -11,16 +14,18 @@ class HttpHandler
 
   def process
     loop do
-      request = parse_request
-      break if request.empty?
+      Timeout.timeout(KEEP_ALIVE_TIMEOUT) do
+        request = parse_request
+        break if request.empty?
 
-      response, keep_alive = handle_request(request)
-      send_response(response)
+        response, keep_alive = handle_request(request)
+        send_response(response)
 
-      break unless keep_alive
+        return unless keep_alive
+      end
+    rescue EOFError, Errno::ECONNRESET, Timeout::Error
+      break
     end
-  rescue EOFError, Errno::ECONNRESET
-    # client closed the connection
   ensure
     @client.close
   end
@@ -30,22 +35,28 @@ class HttpHandler
   def handle_request(request)
     response = HttpResponse.new
 
+    if request[:version] != 'HTTP/1.1'
+      handle_unsupported_http_version(response)
+      return [response, false]
+    end
+
     case request[:method]
     when 'GET'
       handle_get_request(request[:path], request[:headers], response)
     when 'POST'
       handle_post_request(request[:path], request[:headers], request[:body], response)
+    else
+      response.status = 405
+      response.headers['Allow'] = 'GET, POST'
     end
 
-    keep_alive = false
-    response.headers['Connection'] = 'close'
-    if (response.status == 200 || response.status == 201) &&
-       (request[:headers]['connection']&.downcase == 'keep-alive')
-      response.headers['Connection'] = 'keep-alive'
-      keep_alive = true
-    end
-
+    keep_alive = keep_alive?(request[:headers], response)
     [response, keep_alive]
+  end
+
+  def handle_unsupported_http_version(response)
+    response.status = 505
+    response.set_body('HTTP Version Not Supported. This server only supports HTTP/1.1.', 'text/plain')
   end
 
   def handle_get_request(path, headers, response)
@@ -80,9 +91,23 @@ class HttpHandler
     end
   end
 
+  def keep_alive?(headers, response)
+    keep_alive = false
+    response.headers['Connection'] = 'close'
+    is_success_response = [200, 201].include?(response.status)
+    keep_alive_requested = headers['connection']&.downcase == 'keep-alive'
+    if is_success_response && keep_alive_requested
+      response.headers['Connection'] = 'keep-alive'
+      response.headers['Keep-Alive'] = "timeout=#{KEEP_ALIVE_TIMEOUT}"
+      keep_alive = true
+    end
+    keep_alive
+  end
+
   def send_response(response)
     response_str = response.response_string
     @client.write response_str
+    @client.flush
     print "-> | #{response_str}\n"
   end
 
@@ -91,11 +116,11 @@ class HttpHandler
     return {} unless request_line
 
     print "<- | #{request_line}"
-    method, path, = request_line.split
+    method, path, version = request_line.split
     headers = parse_headers
     body = @client.read(headers['content-length'].to_i) if headers['content-length']&.to_i&.positive?
 
-    { method: method, path: path, headers: headers, body: body }
+    { version: version, method: method, path: path, headers: headers, body: body }
   end
 
   def parse_headers
