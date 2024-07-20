@@ -7,7 +7,8 @@ class HttpResponse
   STATUS_MAP = {
     200 => 'OK',
     201 => 'Created',
-    404 => 'Not Found'
+    404 => 'Not Found',
+    505 => 'HTTP Version Not Supported'
   }.freeze
 
   attr_accessor :status
